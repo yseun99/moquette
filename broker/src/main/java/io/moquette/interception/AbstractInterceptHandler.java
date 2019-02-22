@@ -20,6 +20,7 @@ import io.moquette.interception.messages.InterceptAcknowledgedMessage;
 import io.moquette.interception.messages.InterceptConnectMessage;
 import io.moquette.interception.messages.InterceptConnectionLostMessage;
 import io.moquette.interception.messages.InterceptDisconnectMessage;
+import io.moquette.interception.messages.InterceptPrePublishMessage;
 import io.moquette.interception.messages.InterceptPublishMessage;
 import io.moquette.interception.messages.InterceptSubscribeMessage;
 import io.moquette.interception.messages.InterceptUnsubscribeMessage;
@@ -44,6 +45,10 @@ public abstract class AbstractInterceptHandler implements InterceptHandler {
 
     @Override
     public void onConnectionLost(InterceptConnectionLostMessage msg) {
+    }
+
+    @Override
+    public void onPrePublish(InterceptPrePublishMessage msg) {
     }
 
     @Override

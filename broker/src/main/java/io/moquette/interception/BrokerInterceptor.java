@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import static io.moquette.logging.LoggingUtils.getInterceptorIds;
 
@@ -42,8 +43,9 @@ public final class BrokerInterceptor implements Interceptor {
     private static final Logger LOG = LoggerFactory.getLogger(BrokerInterceptor.class);
     private final Map<Class<?>, List<InterceptHandler>> handlers;
     private final ExecutorService executor;
+    private final boolean autoPublish;
 
-    private BrokerInterceptor(int poolSize, List<InterceptHandler> handlers) {
+    private BrokerInterceptor(int poolSize, boolean autoPublish, List<InterceptHandler> handlers) {
         LOG.info("Initializing broker interceptor. InterceptorIds={}", getInterceptorIds(handlers));
         this.handlers = new HashMap<>();
         for (Class<?> messageType : InterceptHandler.ALL_MESSAGE_TYPES) {
@@ -53,6 +55,7 @@ public final class BrokerInterceptor implements Interceptor {
             this.addInterceptHandler(handler);
         }
         executor = Executors.newFixedThreadPool(poolSize);
+        this.autoPublish = autoPublish;
     }
 
     /**
@@ -61,7 +64,7 @@ public final class BrokerInterceptor implements Interceptor {
      * @param handlers InterceptHandlers listeners.
      */
     public BrokerInterceptor(List<InterceptHandler> handlers) {
-        this(1, handlers);
+        this(1, true, handlers);
     }
 
     /**
@@ -71,7 +74,9 @@ public final class BrokerInterceptor implements Interceptor {
      *
      */
     public BrokerInterceptor(IConfig props, List<InterceptHandler> handlers) {
-        this(Integer.parseInt(props.getProperty(BrokerConstants.BROKER_INTERCEPTOR_THREAD_POOL_SIZE, "1")), handlers);
+        this(Integer.parseInt(props.getProperty(BrokerConstants.BROKER_INTERCEPTOR_THREAD_POOL_SIZE, "1")), 
+        		Boolean.parseBoolean(props.getProperty(BrokerConstants.BROKER_INTERCEPTOR_AUTO_PUBLISH, "true")),
+        		handlers);
     }
 
     /**
@@ -120,22 +125,56 @@ public final class BrokerInterceptor implements Interceptor {
     }
 
     @Override
+    public Future<?> notifyTopicPublishing(final InterceptPrePublishMessage imsg) {
+        final MqttPublishMessage msg = imsg.getMqttMessage();
+        msg.retain();
+
+        return executor.submit(() -> {
+            try {
+                final int messageId = msg.variableHeader().packetId();
+                final String topic = imsg.getTopicName();
+                final String clientId = imsg.getClientID();
+
+                for (InterceptHandler handler : handlers.get(InterceptPublishMessage.class)) {
+                    LOG.debug("Notifying MQTT PUBLISH message to interceptor before publishing. CId={}, messageId={}, topic={}, "
+                            + "interceptorId={}", clientId, messageId, topic, handler.getID());
+                    handler.onPrePublish(imsg);
+                }
+            	imsg.publish(autoPublish);
+            } finally {
+                ReferenceCountUtil.release(msg);
+            }
+        });
+    }
+
+    @Override
     public void notifyTopicPublished(final MqttPublishMessage msg, final String clientID, final String username) {
         msg.retain();
 
-        executor.execute(() -> {
-                try {
-                    int messageId = msg.variableHeader().messageId();
-                    String topic = msg.variableHeader().topicName();
-                    for (InterceptHandler handler : handlers.get(InterceptPublishMessage.class)) {
-                        LOG.debug("Notifying MQTT PUBLISH message to interceptor. CId={}, messageId={}, topic={}, "
-                                + "interceptorId={}", clientID, messageId, topic, handler.getID());
-                        handler.onPublish(new InterceptPublishMessage(msg, clientID, username));
-                    }
-                } finally {
-                    ReferenceCountUtil.release(msg);
-                }
-        });
+        try {
+            int messageId = msg.variableHeader().packetId();
+            String topic = msg.variableHeader().topicName();
+            for (InterceptHandler handler : handlers.get(InterceptPublishMessage.class)) {
+                LOG.debug("Notifying MQTT PUBLISH message to interceptor. CId={}, messageId={}, topic={}, "
+                        + "interceptorId={}", clientID, messageId, topic, handler.getID());
+                handler.onPublish(new InterceptPublishMessage(msg, clientID, username));
+            }
+        } finally {
+            ReferenceCountUtil.release(msg);
+        }
+//        executor.execute(() -> {
+//                try {
+//                    int messageId = msg.variableHeader().packetId();
+//                    String topic = msg.variableHeader().topicName();
+//                    for (InterceptHandler handler : handlers.get(InterceptPublishMessage.class)) {
+//                        LOG.debug("Notifying MQTT PUBLISH message to interceptor. CId={}, messageId={}, topic={}, "
+//                                + "interceptorId={}", clientID, messageId, topic, handler.getID());
+//                        handler.onPublish(new InterceptPublishMessage(msg, clientID, username));
+//                    }
+//                } finally {
+//                    ReferenceCountUtil.release(msg);
+//                }
+//        });
     }
 
     @Override

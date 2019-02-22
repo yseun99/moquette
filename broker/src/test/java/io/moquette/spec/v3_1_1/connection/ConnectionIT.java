@@ -17,15 +17,15 @@
 package io.moquette.spec.v3_1_1.connection;
 
 import io.moquette.broker.Server;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import java.io.File;
 import java.io.IOException;
 import io.moquette.BrokerConstants;
 import io.moquette.integration.IntegrationUtils;
 import io.moquette.testclient.RawClient;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -38,6 +38,15 @@ public class ConnectionIT {
         m_server.startServer();
     }
 
+    @BeforeClass
+    public static void setUpBeforeClass() throws Exception {
+        File dbFile = new File(BrokerConstants.DEFAULT_PERSISTENT_PATH);
+        if (dbFile.exists()) {
+            dbFile.delete();
+        }
+    	
+    }
+
     @Before
     public void setUp() throws Exception {
         startServer();
@@ -47,14 +56,19 @@ public class ConnectionIT {
     public void tearDown() throws Exception {
         m_server.stopServer();
 
-        File dbFile = new File(BrokerConstants.DEFAULT_PERSISTENT_PATH);
-        if (dbFile.exists()) {
-            assertTrue(
-                    "Error deleting the moquette db file " + BrokerConstants.DEFAULT_PERSISTENT_PATH,
-                    dbFile.delete());
-        }
-        assertFalse(dbFile.exists());
+//        File dbFile = new File(BrokerConstants.DEFAULT_PERSISTENT_PATH);
+//        if (dbFile.exists()) {
+//            assertTrue(
+//                    "Error deleting the moquette db file " + BrokerConstants.DEFAULT_PERSISTENT_PATH,
+//                    dbFile.delete());
+//        }
+//        assertFalse(dbFile.exists());
         IntegrationUtils.clearTestStorage();
+    }
+
+    @AfterClass
+    public static void tearDownAfterClass() throws Exception {
+    	
     }
 
     @Test(timeout = 3000)

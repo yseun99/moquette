@@ -18,7 +18,9 @@ package io.moquette.persistence;
 import io.moquette.BrokerConstants;
 import org.h2.mvstore.MVStore;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -28,28 +30,58 @@ import static org.junit.Assert.*;
 
 public class H2PersistentQueueTest {
 
-    private MVStore mvStore;
+    private static MVStore mvStore;
+    private H2PersistentQueue<String> sut;
+
+    @BeforeClass
+    public static void setUpBeforeCalss() {
+        final File dbFile = new File(BrokerConstants.DEFAULT_PERSISTENT_PATH);
+        if (dbFile.exists()) {
+            dbFile.delete();
+        }
+    	mvStore = new MVStore.Builder()
+    			.fileName(BrokerConstants.DEFAULT_PERSISTENT_PATH)
+    			.autoCommitDisabled()
+    			.open();
+    	
+    }
 
     @Before
     public void setUp() {
-        this.mvStore = new MVStore.Builder()
-            .fileName(BrokerConstants.DEFAULT_PERSISTENT_PATH)
-            .autoCommitDisabled()
-            .open();
+        this.sut = new H2PersistentQueue<>(mvStore, "test");
+//        final File dbFile = new File(BrokerConstants.DEFAULT_PERSISTENT_PATH);
+//        if (dbFile.exists()) {
+//            dbFile.delete();
+//        }
+//        assertFalse(dbFile.exists());
+//        this.mvStore = new MVStore.Builder()
+//            .fileName(BrokerConstants.DEFAULT_PERSISTENT_PATH)
+//            .autoCommitDisabled()
+//            .open();
     }
 
     @After
     public void tearDown() {
-        File dbFile = new File(BrokerConstants.DEFAULT_PERSISTENT_PATH);
-        if (dbFile.exists()) {
-            dbFile.delete();
-        }
-        assertFalse(dbFile.exists());
+    	H2PersistentQueue.dropQueue(mvStore, "test");
+//        File dbFile = new File(BrokerConstants.DEFAULT_PERSISTENT_PATH);
+//        if (dbFile.exists()) {
+//            dbFile.delete();
+//        }
+//      assertFalse(dbFile.exists());
+    }
+
+    
+    @AfterClass
+    public static void tearDownAfterClass() {
+//        File dbFile = new File(BrokerConstants.DEFAULT_PERSISTENT_PATH);
+//        if (dbFile.exists()) {
+//            dbFile.deleteOnExit();;
+//        }
     }
 
     @Test
     public void testAdd() {
-        H2PersistentQueue<String> sut = new H2PersistentQueue<>(this.mvStore, "test");
+//        H2PersistentQueue<String> sut = new H2PersistentQueue<>(this.mvStore, "test");
 
         sut.add("Hello");
         sut.add("world");
@@ -57,11 +89,13 @@ public class H2PersistentQueueTest {
         assertEquals("Hello", sut.peek());
         assertEquals("Hello", sut.peek());
         assertEquals("peek just return elements, doesn't remove them", 2, sut.size());
+        
+//        H2PersistentQueue.dropQueue(this.mvStore, "test");
     }
 
     @Test
     public void testPoll() {
-        H2PersistentQueue<String> sut = new H2PersistentQueue<>(this.mvStore, "test");
+//        H2PersistentQueue<String> sut = new H2PersistentQueue<>(this.mvStore, "test");
         sut.add("Hello");
         sut.add("world");
 
@@ -73,7 +107,7 @@ public class H2PersistentQueueTest {
     @Ignore
     @Test
     public void testPerformance() {
-        H2PersistentQueue<String> sut = new H2PersistentQueue<>(this.mvStore, "test");
+//        H2PersistentQueue<String> sut = new H2PersistentQueue<>(this.mvStore, "test");
 
         int numIterations = 10000000;
         for (int i = 0; i < numIterations; i++) {
@@ -90,21 +124,23 @@ public class H2PersistentQueueTest {
 
     @Test
     public void testReloadFromPersistedState() {
-        H2PersistentQueue<String> before = new H2PersistentQueue<>(this.mvStore, "test");
+//        H2PersistentQueue<String> before = new H2PersistentQueue<>(this.mvStore, "test");
+    	H2PersistentQueue<String> before = sut;
         before.add("Hello");
         before.add("crazy");
         before.add("world");
         assertEquals("Hello", before.poll());
-        this.mvStore.commit();
-        this.mvStore.close();
+        mvStore.commit();
+        mvStore.close();
 
-        this.mvStore = new MVStore.Builder()
+        mvStore = new MVStore.Builder()
             .fileName(BrokerConstants.DEFAULT_PERSISTENT_PATH)
             .autoCommitDisabled()
             .open();
 
         //now reload the persisted state
-        H2PersistentQueue<String> after = new H2PersistentQueue<>(this.mvStore, "test");
+        sut = new H2PersistentQueue<>(mvStore, "test");
+        H2PersistentQueue<String> after = sut;
 
         assertEquals("crazy", after.poll());
         assertEquals("world", after.poll());

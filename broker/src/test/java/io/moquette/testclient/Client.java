@@ -57,7 +57,6 @@ public class Client {
         this(host, BrokerConstants.PORT);
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
     public Client(String host, int port) {
         handler.setClient(this);
         workerGroup = new NioEventLoopGroup();
@@ -185,7 +184,6 @@ public class Client {
         return m_connectionLost;
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
     public void close() throws InterruptedException {
         // Wait until the connection is closed.
         m_channel.closeFuture().sync().addListener(CLOSE_ON_FAILURE);

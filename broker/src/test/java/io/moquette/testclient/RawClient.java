@@ -73,7 +73,6 @@ public final class RawClient {
     private CountDownLatch disconnectLatch;
     private final Semaphore readableBytesSem;
 
-    @SuppressWarnings("FutureReturnValueIgnored")
     private RawClient(String host, int port) {
         handler = new RawMessageHandler();
         heapBuffer = Unpooled.buffer(128);

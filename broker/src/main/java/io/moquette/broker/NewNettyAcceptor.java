@@ -325,7 +325,6 @@ class NewNettyAcceptor {
         });
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
     public void close() {
         LOG.debug("Closing Netty acceptor...");
         if (workerGroup == null || bossGroup == null) {

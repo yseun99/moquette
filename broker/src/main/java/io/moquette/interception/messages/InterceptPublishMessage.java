@@ -16,28 +16,41 @@
 
 package io.moquette.interception.messages;
 
+import io.moquette.broker.subscriptions.Topic;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.mqtt.MqttPublishMessage;
 
-public class InterceptPublishMessage extends InterceptAbstractMessage {
+public class InterceptPublishMessage extends InterceptAbstractMessage<MqttPublishMessage> {
 
-    private final MqttPublishMessage msg;
     private final String clientID;
     private final String username;
+	private final Topic topic;
 
     public InterceptPublishMessage(MqttPublishMessage msg, String clientID, String username) {
         super(msg);
-        this.msg = msg;
         this.clientID = clientID;
         this.username = username;
+		this.topic = new Topic(msg.variableHeader().topicName());
     }
 
     public String getTopicName() {
-        return msg.variableHeader().topicName();
+		return this.topic.toString();
+	}
+
+	public Topic getTopic() {
+		return this.topic;
     }
 
     public ByteBuf getPayload() {
-        return msg.payload();
+		return this.msg.payload();
+	}
+
+	public void setPayload(ByteBuf content) {
+		this.msg = this.msg.replace(content);
+	}
+
+	public MqttPublishMessage getMqttMessage() {
+		return this.msg;
     }
 
     public String getClientID() {

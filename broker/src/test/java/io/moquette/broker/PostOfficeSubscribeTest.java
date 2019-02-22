@@ -34,6 +34,9 @@ import org.junit.Test;
 import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static io.moquette.broker.PostOfficePublishTest.ALLOW_ANONYMOUS_AND_ZERO_BYTES_CLID;
 import static io.moquette.broker.PostOfficePublishTest.SUBSCRIBER_ID;
@@ -221,7 +224,7 @@ public class PostOfficeSubscribeTest {
     }
 
     @Test
-    public void testCleanSession_maintainClientSubscriptions() {
+    public void testCleanSession_maintainClientSubscriptions() throws InterruptedException, ExecutionException, TimeoutException {
         connection.processConnect(connectMessage);
         ConnectionTestUtils.assertConnectAccepted(channel);
         assertEquals("After CONNECT subscription MUST be empty", 0, subscriptions.size());
@@ -245,7 +248,8 @@ public class PostOfficeSubscribeTest {
                 .payload(payload.retainedDuplicate())
                 .qos(MqttQoS.AT_MOST_ONCE)
                 .retained(false)
-                .topicName(NEWS_TOPIC).build());
+                .topicName(NEWS_TOPIC).build())
+        	.get(500, TimeUnit.MILLISECONDS);
 
         ConnectionTestUtils.verifyPublishIsReceived(anotherChannel, AT_MOST_ONCE, "Hello world!");
     }
@@ -254,9 +258,12 @@ public class PostOfficeSubscribeTest {
      * Check that after a client has connected with clean session false, subscribed to some topic
      * and exited, if it reconnects with clean session true, the broker correctly cleanup every
      * previous subscription
+     * @throws TimeoutException 
+     * @throws ExecutionException 
+     * @throws InterruptedException 
      */
     @Test
-    public void testCleanSession_correctlyClientSubscriptions() {
+    public void testCleanSession_correctlyClientSubscriptions() throws InterruptedException, ExecutionException, TimeoutException {
         connection.processConnect(connectMessage);
         ConnectionTestUtils.assertConnectAccepted(channel);
         assertEquals("After CONNECT subscription MUST be empty", 0, subscriptions.size());
@@ -290,14 +297,15 @@ public class PostOfficeSubscribeTest {
                 .payload(payload)
                 .qos(MqttQoS.AT_MOST_ONCE)
                 .retained(false)
-                .topicName(NEWS_TOPIC).build());
+                .topicName(NEWS_TOPIC).build())
+        	.get(500, TimeUnit.MILLISECONDS);
 
         // verify no publish is fired
         ConnectionTestUtils.verifyNoPublishIsReceived(channel);
     }
 
     @Test
-    public void testReceiveRetainedPublishRespectingSubscriptionQoSAndNotPublisher() {
+    public void testReceiveRetainedPublishRespectingSubscriptionQoSAndNotPublisher() throws InterruptedException, ExecutionException, TimeoutException {
         // publisher publish a retained message on topic /news
         connection.processConnect(connectMessage);
         ConnectionTestUtils.assertConnectAccepted(channel);
@@ -306,8 +314,8 @@ public class PostOfficeSubscribeTest {
             .payload(payload.retainedDuplicate())
             .qos(MqttQoS.AT_LEAST_ONCE)
             .topicName(NEWS_TOPIC).build();
-        sut.receivedPublishQos1(connection, new Topic(NEWS_TOPIC), TEST_USER, payload, 1, true,
-            retainedPubQoS1Msg);
+        sut.receivedPublishQos1(connection, new Topic(NEWS_TOPIC), TEST_USER, payload, 1, true, retainedPubQoS1Msg)
+        	.get(500, TimeUnit.MILLISECONDS);
 
         // subscriber connects subscribe to topic /news and receive the last retained message
         EmbeddedChannel subChannel = new EmbeddedChannel();

@@ -28,7 +28,6 @@ public class H2Builder {
         this.scheduler = scheduler;
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
     public H2Builder initStore() {
         LOG.info("Initializing H2 store");
         if (storePath == null || storePath.isEmpty()) {

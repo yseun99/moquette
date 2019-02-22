@@ -17,6 +17,10 @@
 package io.moquette.interception;
 
 import io.moquette.interception.messages.InterceptAcknowledgedMessage;
+import io.moquette.interception.messages.InterceptPrePublishMessage;
+
+import java.util.concurrent.Future;
+
 import io.moquette.broker.subscriptions.Subscription;
 import io.netty.handler.codec.mqtt.MqttConnectMessage;
 import io.netty.handler.codec.mqtt.MqttPublishMessage;
@@ -38,6 +42,8 @@ public interface Interceptor {
     void notifyClientDisconnected(String clientID, String username);
 
     void notifyClientConnectionLost(String clientID, String username);
+
+    Future<?> notifyTopicPublishing(InterceptPrePublishMessage msg);
 
     void notifyTopicPublished(MqttPublishMessage msg, String clientID, String username);
 

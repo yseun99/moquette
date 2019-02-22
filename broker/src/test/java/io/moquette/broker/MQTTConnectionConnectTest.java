@@ -37,6 +37,8 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 public class MQTTConnectionConnectTest {
 
     private static final String FAKE_CLIENT_ID = "FAKE_123";
@@ -109,7 +111,7 @@ public class MQTTConnectionConnectTest {
     public void invalidAuthentication() {
         MqttConnectMessage msg = connMsg.clientId(FAKE_CLIENT_ID)
             .username(TEST_USER + "_fake")
-            .password(TEST_PWD)
+            .password(TEST_PWD.getBytes(UTF_8))
             .build();
 
         // Exercise
@@ -134,7 +136,7 @@ public class MQTTConnectionConnectTest {
     @Test
     public void testWillIsAccepted() {
         MqttConnectMessage msg = connMsg.clientId(FAKE_CLIENT_ID).willFlag(true)
-            .willTopic("topic").willMessage("Topic message").build();
+            .willTopic("topic").willMessage("Topic message".getBytes(UTF_8)).build();
 
         // Exercise
         // m_handler.setMessaging(mockedMessaging);
@@ -152,7 +154,7 @@ public class MQTTConnectionConnectTest {
         channel = (EmbeddedChannel) sut.channel;
 
         MqttConnectMessage msg = connMsg.clientId(FAKE_CLIENT_ID).willFlag(true)
-            .willTopic("topic").willMessage("Topic message").build();
+            .willTopic("topic").willMessage("Topic message".getBytes(UTF_8)).build();
         sut.processConnect(msg);
 
         // Exercise
@@ -178,7 +180,7 @@ public class MQTTConnectionConnectTest {
     @Test
     public void validAuthentication() {
         MqttConnectMessage msg = connMsg.clientId(FAKE_CLIENT_ID)
-            .username(TEST_USER).password(TEST_PWD).build();
+            .username(TEST_USER).password(TEST_PWD.getBytes(UTF_8)).build();
 
         // Exercise
         sut.processConnect(msg);
@@ -272,7 +274,7 @@ public class MQTTConnectionConnectTest {
         // Connect a client1
         MqttConnectMessage msg = connMsg.clientId(FAKE_CLIENT_ID)
             .username(TEST_USER)
-            .password(TEST_PWD)
+            .password(TEST_PWD.getBytes(UTF_8))
             .build();
         sut.processConnect(msg);
         assertEqualsConnAck(CONNECTION_ACCEPTED, channel.readOutbound());
@@ -282,7 +284,7 @@ public class MQTTConnectionConnectTest {
             .protocolVersion(MqttVersion.MQTT_3_1)
             .clientId(FAKE_CLIENT_ID)
             .username(EVIL_TEST_USER)
-            .password(EVIL_TEST_PWD)
+            .password(EVIL_TEST_PWD.getBytes(UTF_8))
             .build();
 
         EmbeddedChannel evilChannel = new EmbeddedChannel();
@@ -304,7 +306,7 @@ public class MQTTConnectionConnectTest {
     public void testForceClientDisconnection_issue116() {
         MqttConnectMessage msg = connMsg.clientId(FAKE_CLIENT_ID)
             .username(TEST_USER)
-            .password(TEST_PWD)
+            .password(TEST_PWD.getBytes(UTF_8))
             .build();
         sut.processConnect(msg);
         assertEqualsConnAck(CONNECTION_ACCEPTED, channel.readOutbound());

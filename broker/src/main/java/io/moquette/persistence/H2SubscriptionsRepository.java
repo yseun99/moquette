@@ -29,7 +29,7 @@ public class H2SubscriptionsRepository implements ISubscriptionsRepository {
         List<Subscription> results = new ArrayList<>();
         Cursor<String, Subscription> mapCursor = subscriptions.cursor(null);
         while (mapCursor.hasNext()) {
-            String subscriptionStr = mapCursor.next();
+            mapCursor.next();
             results.add(mapCursor.getValue());
         }
         LOG.debug("Loaded {} subscriptions", results.size());

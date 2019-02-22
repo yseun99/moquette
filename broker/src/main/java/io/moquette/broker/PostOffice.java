@@ -16,6 +16,8 @@
 package io.moquette.broker;
 
 import io.moquette.interception.BrokerInterceptor;
+import io.moquette.interception.FailedFuture;
+import io.moquette.interception.messages.InterceptPrePublishMessage;
 import io.moquette.broker.subscriptions.ISubscriptionsDirectory;
 import io.moquette.broker.subscriptions.Subscription;
 import io.moquette.broker.subscriptions.Topic;
@@ -28,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static io.moquette.broker.Utils.messageId;
@@ -159,50 +162,87 @@ class PostOffice {
         mqttConnection.sendUnsubAckMessage(topics, clientID, messageId);
     }
 
-    void receivedPublishQos0(Topic topic, String username, String clientID, ByteBuf payload, boolean retain,
+    Future<?> receivedPublishQos0(Topic topic, String username, String clientID, ByteBuf payload, boolean retain,
                              MqttPublishMessage msg) {
         if (!authorizator.canWrite(topic, username, clientID)) {
-            LOG.error("MQTT client: {} is not authorized to publish on topic: {}", clientID, topic);
-            return;
+//            LOG.error("MQTT client: {} is not authorized to publish on topic: {}", clientID, topic);
+        	final String cause = String.format("MQTT client: %s is not authorized to publish on topic: %s", clientID, topic);
+        	LOG.error(cause);
+            return new FailedFuture<Object>(cause);
         }
-        publish2Subscribers(payload, topic, AT_MOST_ONCE);
+        return interceptor.notifyTopicPublishing(new InterceptPrePublishMessage(msg, clientID, username, (x, b) -> { // InterceptPrePublishMessage
+        	final MqttPublishMessage msgToPub = x.getMqttMessage();
+        	if (b) {
+        		publish2Subscribers(msgToPub.payload(), topic, AT_MOST_ONCE);
+        	}
+            if (retain) {
+                // QoS == 0 && retain => clean old retained
+                retainedRepository.cleanRetained(topic);
+            }
+            if (b) {
+            	interceptor.notifyTopicPublished(msgToPub, clientID, username);
+            }
+        }));
 
-        if (retain) {
-            // QoS == 0 && retain => clean old retained
-            retainedRepository.cleanRetained(topic);
-        }
+//        publish2Subscribers(payload, topic, AT_MOST_ONCE);
 
-        interceptor.notifyTopicPublished(msg, clientID, username);
+//        if (retain) {
+//            // QoS == 0 && retain => clean old retained
+//            retainedRepository.cleanRetained(topic);
+//        }
+//
+//        interceptor.notifyTopicPublished(msg, clientID, username);
     }
 
-    void receivedPublishQos1(MQTTConnection connection, Topic topic, String username, ByteBuf payload, int messageID,
+    Future<?> receivedPublishQos1(MQTTConnection connection, Topic topic, String username, ByteBuf payload, int messageID,
                              boolean retain, MqttPublishMessage msg) {
         // verify if topic can be write
         topic.getTokens();
         if (!topic.isValid()) {
-            LOG.warn("Invalid topic format, force close the connection");
+        	final String cause = "Invalid topic format, force close the connection";
+            LOG.warn(cause);
             connection.dropConnection();
-            return;
+            return new FailedFuture<Object>(cause);
         }
         final String clientId = connection.getClientId();
         if (!authorizator.canWrite(topic, username, clientId)) {
-            LOG.error("MQTT client: {} is not authorized to publish on topic: {}", clientId, topic);
-            return;
+        	final String cause = String.format("MQTT client: %s is not authorized to publish on topic: %s", clientId, topic);
+            LOG.error(cause);
+            return new FailedFuture<Object>(cause);
         }
 
-        publish2Subscribers(payload, topic, AT_LEAST_ONCE);
+        return interceptor.notifyTopicPublishing(new InterceptPrePublishMessage(msg, clientId, username, (x, b) -> { // InterceptPrePublishMessage
+        	final MqttPublishMessage msgToPub = x.getMqttMessage();
+        	if (b) {
+        		publish2Subscribers(msgToPub.payload(), topic, AT_LEAST_ONCE);
+        	}
+            connection.sendPubAck(messageID);
 
-        connection.sendPubAck(messageID);
-
-        if (retain) {
-            if (!payload.isReadable()) {
-                retainedRepository.cleanRetained(topic);
-            } else {
-                // before wasn't stored
-                retainedRepository.retain(topic, msg);
+            if (retain) {
+                if (!msgToPub.payload().isReadable()) {
+                    retainedRepository.cleanRetained(topic);
+                } else {
+                    // before wasn't stored
+                    retainedRepository.retain(topic, msgToPub);
+                }
             }
-        }
-        interceptor.notifyTopicPublished(msg, clientId, username);
+            if (b) {
+            	interceptor.notifyTopicPublished(msgToPub, clientId, username);
+            }
+        }));
+//        publish2Subscribers(payload, topic, AT_LEAST_ONCE);
+//
+//        connection.sendPubAck(messageID);
+//
+//        if (retain) {
+//            if (!payload.isReadable()) {
+//                retainedRepository.cleanRetained(topic);
+//            } else {
+//                // before wasn't stored
+//                retainedRepository.retain(topic, msg);
+//            }
+//        }
+//        interceptor.notifyTopicPublished(msg, clientId, username);
     }
 
     private void publish2Subscribers(ByteBuf origPayload, Topic topic, MqttQoS publishingQos) {
@@ -238,31 +278,50 @@ class PostOffice {
      * First phase of a publish QoS2 protocol, sent by publisher to the broker. Publish to all interested
      * subscribers.
      */
-    void receivedPublishQos2(MQTTConnection connection, MqttPublishMessage mqttPublishMessage, String username) {
+    Future<?> receivedPublishQos2(MQTTConnection connection, MqttPublishMessage msg, String username) {
         LOG.trace("Processing PUBREL message on connection: {}", connection);
-        final Topic topic = new Topic(mqttPublishMessage.variableHeader().topicName());
-        final ByteBuf payload = mqttPublishMessage.payload();
+        final Topic topic = new Topic(msg.variableHeader().topicName());
+//        final ByteBuf payload = msg.payload();
 
         final String clientId = connection.getClientId();
         if (!authorizator.canWrite(topic, username, clientId)) {
-            LOG.error("MQTT client is not authorized to publish on topic. CId={}, topic: {}", clientId, topic);
-            return;
+        	final String cause = String.format("MQTT client is not authorized to publish on topic. CId=%s, topic: %s", clientId, topic);
+            LOG.error(cause);
+            return new FailedFuture<Object>(cause);
         }
 
-        publish2Subscribers(payload, topic, EXACTLY_ONCE);
-
-        final boolean retained = mqttPublishMessage.fixedHeader().isRetain();
-        if (retained) {
-            if (!payload.isReadable()) {
-                retainedRepository.cleanRetained(topic);
-            } else {
-                // before wasn't stored
-                retainedRepository.retain(topic, mqttPublishMessage);
+        return interceptor.notifyTopicPublishing(new InterceptPrePublishMessage(msg, clientId, username, (x, b) -> { // InterceptPrePublishMessage
+        	final MqttPublishMessage msgToPub = x.getMqttMessage();
+        	if (b) {
+        		publish2Subscribers(msgToPub.payload(), topic, EXACTLY_ONCE);
+        	}
+            final boolean retained = msg.fixedHeader().isRetain();
+            if (retained) {
+                if (!msgToPub.payload().isReadable()) {
+                    retainedRepository.cleanRetained(topic);
+                } else {
+                    // before wasn't stored
+                    retainedRepository.retain(topic, msgToPub);
+                }
             }
-        }
-
-        String clientID = connection.getClientId();
-        interceptor.notifyTopicPublished(mqttPublishMessage, clientID, username);
+            if (b) {
+            	interceptor.notifyTopicPublished(msgToPub, clientId, username);
+            }
+        }));
+//        publish2Subscribers(payload, topic, EXACTLY_ONCE);
+//
+//        final boolean retained = mqttPublishMessage.fixedHeader().isRetain();
+//        if (retained) {
+//            if (!payload.isReadable()) {
+//                retainedRepository.cleanRetained(topic);
+//            } else {
+//                // before wasn't stored
+//                retainedRepository.retain(topic, mqttPublishMessage);
+//            }
+//        }
+//
+//        String clientID = connection.getClientId();
+//        interceptor.notifyTopicPublished(mqttPublishMessage, clientID, username);
     }
 
     static MqttQoS lowerQosToTheSubscriptionDesired(Subscription sub, MqttQoS qos) {

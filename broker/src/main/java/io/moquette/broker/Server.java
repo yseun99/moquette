@@ -266,7 +266,6 @@ public class Server {
         interceptor = new BrokerInterceptor(props, observers);
     }
 
-    @SuppressWarnings("unchecked")
     private <T, U> T loadClass(String className, Class<T> intrface, Class<U> constructorArgClass, U props) {
         T instance = null;
         try {

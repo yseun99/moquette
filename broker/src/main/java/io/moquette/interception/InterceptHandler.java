@@ -52,6 +52,8 @@ public interface InterceptHandler {
 
     void onConnectionLost(InterceptConnectionLostMessage msg);
 
+    void onPrePublish(InterceptPrePublishMessage msg);
+
     void onPublish(InterceptPublishMessage msg);
 
     void onSubscribe(InterceptSubscribeMessage msg);

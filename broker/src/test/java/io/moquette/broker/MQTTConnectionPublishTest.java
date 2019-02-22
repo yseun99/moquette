@@ -44,12 +44,11 @@ public class MQTTConnectionPublishTest {
     private MQTTConnection sut;
     private EmbeddedChannel channel;
     private SessionRegistry sessionRegistry;
-    private MqttMessageBuilders.ConnectBuilder connMsg;
     private MemoryQueueRepository queueRepository;
 
     @Before
     public void setUp() {
-        connMsg = MqttMessageBuilders.connect().protocolVersion(MqttVersion.MQTT_3_1).cleanSession(true);
+        MqttMessageBuilders.connect().protocolVersion(MqttVersion.MQTT_3_1).cleanSession(true);
 
         BrokerConfiguration config = new BrokerConfiguration(true, true, false);
 

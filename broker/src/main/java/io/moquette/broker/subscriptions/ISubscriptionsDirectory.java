@@ -17,7 +17,6 @@ package io.moquette.broker.subscriptions;
 
 import io.moquette.broker.ISubscriptionsRepository;
 
-import java.util.List;
 import java.util.Set;
 
 public interface ISubscriptionsDirectory {

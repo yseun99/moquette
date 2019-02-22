@@ -27,6 +27,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.Collections;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -68,9 +70,18 @@ public class BrokerInterceptorTest {
             n.set(30);
         }
 
-        @Override
+		@Override
+		public void onPrePublish(InterceptPrePublishMessage msg) {
+			n.set(55);
+		}
+
+		@Override
         public void onPublish(InterceptPublishMessage msg) {
-            n.set(60);
+			if (n.compareAndSet(56, 57)) {
+				return;
+			} else {
+				n.set(60);
+			}
         }
 
         @Override
@@ -87,7 +98,7 @@ public class BrokerInterceptorTest {
         public void onMessageAcknowledged(InterceptAcknowledgedMessage msg) {
             n.set(90);
         }
-    }
+   }
 
     private static final BrokerInterceptor interceptor = new BrokerInterceptor(
         Collections.<InterceptHandler>singletonList(new MockObserver()));
@@ -120,6 +131,25 @@ public class BrokerInterceptorTest {
         interceptor.notifyClientDisconnected("cli1234", "cli1234");
         interval();
         assertEquals(50, n.get());
+    }
+
+    @Test
+    public void testNotifyTopicPublishing() throws Exception {
+        final Future<?> future = interceptor.notifyTopicPublishing(
+                new InterceptPrePublishMessage(
+                    MqttMessageBuilders.publish().qos(MqttQoS.AT_MOST_ONCE)
+                        .payload(Unpooled.copiedBuffer("Hello".getBytes())).build(),
+                    "cli1234",
+                    "cli1234",
+                    (x, b) -> {
+                    	if (b) {
+                    		n.addAndGet(1);
+                    	}
+                    	interceptor.notifyTopicPublished(x.getMqttMessage(), x.getClientID(), x.getUsername()); }
+                    )
+                );
+        future.get(100, TimeUnit.MILLISECONDS);
+        assertEquals(57, n.get());
     }
 
     @Test
